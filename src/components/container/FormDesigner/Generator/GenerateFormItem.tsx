@@ -276,7 +276,13 @@ export default class GenerateFormItem extends Vue {
               : null}
             {widgetType == 'checkbox' || widgetType == 'select'
               ? (widget.options.remote ? widget.options.remoteOptions : widget.options.options)
-                  .filter((item: any) => this.current.includes(item.value))
+                  .filter((item: any) => {
+                    if (Array.isArray(this.current)) {
+                      return this.current.includes(item.value);
+                    } else {
+                      return this.current === item.value;
+                    }
+                  })
                   .map((sub: any) => sub.label)
                   .join(',')
               : null}
@@ -768,6 +774,13 @@ export default class GenerateFormItem extends Vue {
                 autoSearch={widget.options.autoSearch}
                 count={widget.options.count}
                 size={this.globalConfig.size}
+                onChange={() => {
+                  (this.$refs as any)[widget.model].onFieldChange();
+
+                  if (this.remote[widget.options.onchange]) {
+                    this.remote[widget.options.onchange](this.current, this.models, this.value);
+                  }
+                }}
               />
             )}
 
@@ -868,14 +881,14 @@ export default class GenerateFormItem extends Vue {
                   this.current = data.map(file => ({
                     key: widget.model,
                     keyName: widget.name,
-                    uid: file.id,
+                    uid: file.id || file.storageId,
                     url: file.url,
                     name: file.name,
                     status: file.status,
                     path: file.path,
-                    storageId: file.id,
+                    storageId: file.id || file.storageId,
                     storageName: file.name,
-                    storageType: file.contentType,
+                    storageType: file.contentType || file.storageType,
                     storageUrl: file.url,
                   }));
 
