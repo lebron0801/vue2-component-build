@@ -41525,10 +41525,17 @@ module.exports = exports;
 
 
 
+
+
 let GenerateFormItem = class GenerateFormItem extends vue_property_decorator__WEBPACK_IMPORTED_MODULE_2__[/* Vue */ "e"] {
   constructor() {
     super(...arguments);
     this.current = this.models[this.widget.model]; // 当前字段值
+    this.treeObj = {
+      value: this.models[this.widget.model],
+      label: this.widget.options.assistField ? this.models[this.widget.options.assistField] : ''
+    }; // 懒加载树绑定值 - 单个
+    this.treeList = []; // 懒加载树绑定值 - 多个
     this.userVisible = false; // 是否显示人员选择器
     this.options = []; // 人员选择器临时存储对象
     this.previewVisible = false; // 是否显示附件预览
@@ -41536,7 +41543,10 @@ let GenerateFormItem = class GenerateFormItem extends vue_property_decorator__WE
     this.cascaderSelected = '';
   }
   modelsChange(newVal) {
+    console.log('models监听', newVal);
     this.current = newVal[this.widget.model];
+    this.treeObj.value = newVal[this.widget.model];
+    this.treeObj.label = this.widget.options.assistField ? newVal[this.widget.options.assistField] : '';
   }
   emitChecked(field) {}
   updateModels(val) {}
@@ -41550,7 +41560,9 @@ let GenerateFormItem = class GenerateFormItem extends vue_property_decorator__WE
    * @param newVal 新值
    */
   currentChange(newVal) {
+    console.log('监听进来', newVal);
     this.models[this.widget.model] = newVal;
+    this.treeObj.value = newVal;
     this.updateModels({
       ...this.models,
       [this.widget.model]: newVal
@@ -41571,10 +41583,12 @@ let GenerateFormItem = class GenerateFormItem extends vue_property_decorator__WE
      */
     if (this.widget.options.remote && this.remote[this.widget.options.remoteFunc]) {
       this.remote[this.widget.options.remoteFunc](data => {
+        console.log('初始化', data);
         if (this.widget.type === 'treeSelect' && !this.widget.options.asyncLoad) {
           this.widget.options.remoteOptions = data;
           if (this.widget.options.assistField !== '') {
             this.treeSelected = this.value[this.widget.options.assistField];
+            this.treeObj.label = this.value[this.widget.options.assistField];
           }
         } else if (this.widget.type === 'html') {
           this.current = data;
@@ -41594,8 +41608,30 @@ let GenerateFormItem = class GenerateFormItem extends vue_property_decorator__WE
             };
           });
         }
+        // 树懒加载
+        if (this.widget.type === 'treeSelect' && this.widget.options.asyncLoad) {
+          if (this.widget.options.assistField !== '') {
+            if (this.widget.options.multiple) {
+              const ids = this.models[this.widget.model] || [];
+              const test = this.widget.options.assistField ? this.value[this.widget.options.assistField] || [] : [];
+              ids.map((r, idx) => {
+                this.treeList.push({
+                  value: r,
+                  label: test[idx] || ''
+                });
+              });
+              this.treeSelected = test;
+              // console.log('树2', JSON.parse(JSON.stringify(this.treeList)));
+            } else {
+              this.treeObj.label = this.value[this.widget.options.assistField];
+              this.treeSelected = this.value[this.widget.options.assistField];
+              // console.log('树', JSON.parse(JSON.stringify(this.treeObj)));
+            }
+          }
+        }
       });
     }
+
     if (this.widget.type === 'customSelector' && this.current) {
       this.options = this.widget.options.multiple ? JSON.parse(JSON.stringify(this.current)) : JSON.parse(JSON.stringify([this.current]));
     }
@@ -41619,13 +41655,40 @@ let GenerateFormItem = class GenerateFormItem extends vue_property_decorator__WE
             key: item[this.widget.options.props.value],
             value: item[this.widget.options.props.value],
             label: item[this.widget.options.props.label],
-            children: item[this.widget.options.props.children]
+            children: item[this.widget.options.props.children],
+            isLeaf: item.isLeaf
           };
         });
-        this.widget.options.remoteOptions = this.widget.options.remoteOptions.concat(temp);
+        treeNode.dataRef.children = temp;
+        // this.widget.options.remoteOptions = this.widget.options.remoteOptions.concat(temp);
         resolve();
       }, treeNode);
     });
+  }
+  /**
+   * 下拉数据远端搜索
+   */
+  selectLoad(value) {
+    return new Promise(resolve => {
+      this.remote[this.widget.options.remoteFunc](data => {
+        this.widget.options.remoteOptions = data.map(item => {
+          return {
+            id: item[this.widget.options.props.value],
+            key: item[this.widget.options.props.value],
+            value: item[this.widget.options.props.value],
+            label: item[this.widget.options.props.label],
+            children: item[this.widget.options.props.children]
+          };
+        });
+        resolve();
+      }, value);
+    });
+  }
+  /**
+   * 下拉数据选项进行搜索
+   */
+  selectfilterOption(input, option) {
+    return option.componentOptions.children[0].text.toLowerCase().indexOf(input.toLowerCase()) >= 0;
   }
   /**
    * 受控时所需要的条件
@@ -42114,7 +42177,48 @@ let GenerateFormItem = class GenerateFormItem extends vue_property_decorator__WE
           this.current = $$v;
         }
       }
-    }), widget.type == 'select' && h("a-select", {
+    }), widget.type == 'select' && (widget.options.filterfetch ? h("a-select", {
+      "attrs": {
+        "placeholder": this.$t(widget.options.placeholder),
+        "mode": widget.options.multiple ? 'multiple' : 'default',
+        "disabled": widget.options.disabled,
+        "showSearch": widget.options.filterfetch,
+        "allowClear": widget.options.clearable,
+        "optionFilterProp": "title",
+        "getPopupContainer": triggerNode => triggerNode.parentNode,
+        "size": this.globalConfig.size,
+        "filter-option": false
+      },
+      "style": {
+        width: widget.options.width
+      },
+      "on": {
+        "blur": () => {
+          this.$refs[widget.model].onFieldBlur();
+        },
+        "change": () => {
+          this.$refs[widget.model].onFieldChange();
+          if (this.remote[widget.options.onchange]) {
+            this.remote[widget.options.onchange](this.current, this.models, this.value);
+          }
+        },
+        "search": this.selectLoad
+      },
+      "model": {
+        value: this.current,
+        callback: $$v => {
+          this.current = $$v;
+        }
+      }
+    }, [(widget.options.remote ? widget.options.remoteOptions : widget.options.options).map(item => {
+      return h("a-select-option", {
+        "key": item.value,
+        "attrs": {
+          "value": item.value,
+          "title": widget.options.remote ? widget.options.showLabel ? this.$t(item.label) : item.value : widget.options.showLabel ? this.$t(item.label) : item.value
+        }
+      }, [widget.options.remote ? widget.options.showLabel ? this.$t(item.label) : item.value : widget.options.showLabel ? this.$t(item.label) : item.value]);
+    })]) : h("a-select", {
       "attrs": {
         "placeholder": this.$t(widget.options.placeholder),
         "mode": widget.options.multiple ? 'multiple' : 'default',
@@ -42153,7 +42257,7 @@ let GenerateFormItem = class GenerateFormItem extends vue_property_decorator__WE
           "title": widget.options.remote ? widget.options.showLabel ? this.$t(item.label) : item.value : widget.options.showLabel ? this.$t(item.label) : item.value
         }
       }, [widget.options.remote ? widget.options.showLabel ? this.$t(item.label) : item.value : widget.options.showLabel ? this.$t(item.label) : item.value]);
-    })]), widget.type == 'ddList' && h(this.plugins.DropDownList, {
+    })])), widget.type == 'ddList' && h(this.plugins.DropDownList, {
       "attrs": {
         "multiple": widget.options.multiple,
         "disabled": widget.options.disabled,
@@ -42182,7 +42286,104 @@ let GenerateFormItem = class GenerateFormItem extends vue_property_decorator__WE
           this.current = $$v;
         }
       }
-    }), widget.type == 'treeSelect' && h("a-tree-select", _vue_babel_helper_vue_jsx_merge_props__WEBPACK_IMPORTED_MODULE_0___default()([{
+    }), widget.type == 'treeSelect' && (widget.options.asyncLoad ? widget.options.multiple ? h("a-tree-select", _vue_babel_helper_vue_jsx_merge_props__WEBPACK_IMPORTED_MODULE_0___default()([{
+      "attrs": {
+        "placeholder": this.$t(widget.options.placeholder),
+        "multiple": widget.options.multiple,
+        "treeCheckable": widget.options.multiple,
+        "tree-data-simple-mode": widget.options.asyncLoad,
+        "replaceFields": {
+          children: widget.options.props.children,
+          title: widget.options.props.label,
+          key: widget.options.props.value,
+          value: widget.options.props.value
+        },
+        "dropdownStyle": {
+          maxHeight: '300px'
+        },
+        "getPopupContainer": triggerNode => triggerNode.parentNode,
+        "showSearch": widget.options.filterable,
+        "disabled": widget.options.disabled,
+        "allowClear": widget.options.clearable,
+        "treeNodeFilterProp": "title",
+        "treeData": widget.options.remoteOptions,
+        "treeDefaultExpandedKeys": [widget.options.remoteOptions.length > 0 && widget.options.remoteOptions[0][widget.options.props.value]],
+        "labelInValue": true,
+        "size": this.globalConfig.size,
+        "showCheckedStrategy": widget.options.showCheckedStrategy
+      },
+      "style": {
+        width: widget.options.width
+      },
+      "on": {
+        "change": (value, label, extra) => {
+          this.treeSelected = value.map(o => o.label);
+          // this.treeObj.label = extra.triggerNode.label;
+          this.models[this.widget.model] = value.map(o => o.value);
+          this.widget.options.assistField ? this.models[this.widget.options.assistField] = this.treeSelected : '';
+          console.log('书回调', value, label, extra, this.treeList);
+        }
+      }
+    }, {
+      "props": widget.options.asyncLoad ? {
+        loadData: this.treeSelectLoad
+      } : null
+    }, {
+      "model": {
+        value: this.treeList,
+        callback: $$v => {
+          this.treeList = $$v;
+        }
+      }
+    }])) : h("a-tree-select", _vue_babel_helper_vue_jsx_merge_props__WEBPACK_IMPORTED_MODULE_0___default()([{
+      "attrs": {
+        "placeholder": this.$t(widget.options.placeholder),
+        "multiple": widget.options.multiple,
+        "treeCheckable": widget.options.multiple,
+        "replaceFields": {
+          children: widget.options.props.children,
+          title: widget.options.props.label,
+          key: widget.options.props.value,
+          value: widget.options.props.value
+        },
+        "dropdownStyle": {
+          maxHeight: '300px'
+        },
+        "getPopupContainer": triggerNode => triggerNode.parentNode,
+        "showSearch": widget.options.filterable,
+        "disabled": widget.options.disabled,
+        "allowClear": widget.options.clearable,
+        "treeNodeFilterProp": "title",
+        "treeData": widget.options.remoteOptions,
+        "treeDefaultExpandedKeys": [widget.options.remoteOptions.length > 0 && widget.options.remoteOptions[0][widget.options.props.value]],
+        "labelInValue": true,
+        "size": this.globalConfig.size,
+        "showCheckedStrategy": widget.options.showCheckedStrategy
+      },
+      "style": {
+        width: widget.options.width
+      },
+      "on": {
+        "change": (value, label, extra) => {
+          this.treeSelected = extra.triggerNode.label;
+          this.treeObj.label = extra.triggerNode.label;
+          this.models[this.widget.model] = this.treeObj.value;
+          this.widget.options.assistField ? this.models[this.widget.options.assistField] = this.treeObj.label : '';
+          console.log('书回调', JSON.parse(JSON.stringify(this.models)), JSON.parse(JSON.stringify(this.current)));
+        }
+      }
+    }, {
+      "props": widget.options.asyncLoad ? {
+        loadData: this.treeSelectLoad
+      } : null
+    }, {
+      "model": {
+        value: this.treeObj,
+        callback: $$v => {
+          this.treeObj = $$v;
+        }
+      }
+    }])) : h("a-tree-select", _vue_babel_helper_vue_jsx_merge_props__WEBPACK_IMPORTED_MODULE_0___default()([{
       "attrs": {
         "placeholder": this.$t(widget.options.placeholder),
         "multiple": widget.options.multiple,
@@ -42226,7 +42427,7 @@ let GenerateFormItem = class GenerateFormItem extends vue_property_decorator__WE
           this.current = $$v;
         }
       }
-    }])), widget.type == 'customSelector' && h("a-select", {
+    }]))), widget.type == 'customSelector' && h("a-select", {
       "ref": "selector",
       "attrs": {
         "label-in-value": true,
@@ -42308,14 +42509,14 @@ let GenerateFormItem = class GenerateFormItem extends vue_property_decorator__WE
           this.current = data.map(file => ({
             key: widget.model,
             keyName: widget.name,
-            uid: file.id || file.storageId,
+            uid: file.id,
             url: file.url,
             name: file.name,
             status: file.status,
             path: file.path,
-            storageId: file.id || file.storageId,
+            storageId: file.id,
             storageName: file.name,
-            storageType: file.contentType || file.storageType,
+            storageType: file.contentType,
             storageUrl: file.url
           }));
           this.$refs[widget.model].onFieldChange();
@@ -45569,6 +45770,7 @@ const basicComponents = [{
     }],
     remote: false,
     filterable: false,
+    filterfetch: false,
     remoteOptions: [],
     props: {
       value: 'value',
@@ -48202,16 +48404,22 @@ let WidgetConfig_WidgetConfig = class WidgetConfig extends vue_property_decorato
           this.$set(this.data.options, "assistField", $$v);
         }
       }
-    })])])], (this.data.type == 'select' || this.data.type == 'treeSelect') && [h("a-divider", ["\u662F\u5426\u53EF\u641C\u7D22"]), h("a-form-model-item", [h("div", {
+    })])])], (this.data.type == 'select' || this.data.type == 'treeSelect') && [h("a-divider", ["\u662F\u5426\u5F00\u542F\u672C\u5730\u641C\u7D22"]), h("a-form-model-item", [h("div", {
       "class": "feild-item"
     }, [h("a-switch", {
-      "attrs": {
-        "disabled": this.data.options.multiple
-      },
       "model": {
         value: this.data.options.filterable,
         callback: $$v => {
           this.$set(this.data.options, "filterable", $$v);
+        }
+      }
+    })])])], this.data.type == 'select' && [h("a-divider", ["\u662F\u5426\u5F00\u542F\u8FDC\u7AEF\u641C\u7D22"]), h("a-form-model-item", [h("div", {
+      "class": "feild-item"
+    }, [h("a-switch", {
+      "model": {
+        value: this.data.options.filterfetch,
+        callback: $$v => {
+          this.$set(this.data.options, "filterfetch", $$v);
         }
       }
     })])])], Object.keys(this.data.options).indexOf('allowHalf') >= 0 && [h("a-divider", ["\u5141\u8BB8\u534A\u9009"]), h("a-form-model-item", [h("div", {

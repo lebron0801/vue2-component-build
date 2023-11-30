@@ -582,13 +582,18 @@ export default class WidgetConfig extends Vue {
             ]}
 
             {(this.data.type == 'select' || this.data.type == 'treeSelect') && [
-              <a-divider>是否可搜索</a-divider>,
+              <a-divider>是否开启本地搜索</a-divider>,
               <a-form-model-item>
                 <div class="feild-item">
-                  <a-switch
-                    vModel={this.data.options.filterable}
-                    disabled={this.data.options.multiple}
-                  />
+                  <a-switch vModel={this.data.options.filterable} />
+                </div>
+              </a-form-model-item>,
+            ]}
+            {this.data.type == 'select' && [
+              <a-divider>是否开启远端搜索</a-divider>,
+              <a-form-model-item>
+                <div class="feild-item">
+                  <a-switch vModel={this.data.options.filterfetch} />
                 </div>
               </a-form-model-item>,
             ]}
@@ -1135,18 +1140,18 @@ export default class WidgetConfig extends Vue {
             ]}
 
             {this.data.type == 'imgupload' && [
-			  <a-divider>是否支持相机拍照上传(H5)</a-divider>,
-				<a-form-model-item>
-				  <div class="feild-item">
-					<a-switch vModel={this.data.options.isCamera} />
-				  </div>
-				</a-form-model-item>,
-				<a-divider>是否支持使用相册上传(H5)</a-divider>,
-				<a-form-model-item>
-				  <div class="feild-item">
-					<a-switch vModel={this.data.options.isAlbum} />
-				  </div>
-			  </a-form-model-item>,
+              <a-divider>是否支持相机拍照上传(H5)</a-divider>,
+              <a-form-model-item>
+                <div class="feild-item">
+                  <a-switch vModel={this.data.options.isCamera} />
+                </div>
+              </a-form-model-item>,
+              <a-divider>是否支持使用相册上传(H5)</a-divider>,
+              <a-form-model-item>
+                <div class="feild-item">
+                  <a-switch vModel={this.data.options.isAlbum} />
+                </div>
+              </a-form-model-item>,
               <a-divider>附件别名</a-divider>,
               <a-form-model-item>
                 <div class="feild-item">

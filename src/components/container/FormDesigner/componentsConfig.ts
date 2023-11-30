@@ -527,6 +527,7 @@ export const basicComponents = [
       ],
       remote: false,
       filterable: false,
+      filterfetch: false,
       remoteOptions: [],
       props: {
         value: 'value',
@@ -773,7 +774,7 @@ export const advanceComponents = [
       length: 3,
       // 是否支持多选
       multiple: false,
-	  // 是否支持相机拍照上传
+      // 是否支持相机拍照上传
       isCamera: true,
       // 是否支持使用相册上传
       isAlbum: true,
