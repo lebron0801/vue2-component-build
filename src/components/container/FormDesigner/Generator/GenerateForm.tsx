@@ -419,7 +419,6 @@ export default class GenerateForm extends Vue {
             this.models[genList[i].model] = genList[i].options.defaultValue;
           }
         }
-
         if (this.rules[genList[i].model]) {
           this.rules[genList[i].model] = [
             ...this.rules[genList[i].model],
@@ -427,10 +426,24 @@ export default class GenerateForm extends Vue {
               if (item.pattern) {
                 return { ...item, pattern: eval(item.pattern) };
               } else if (item.required) {
-                return {
-                  ...item,
-                  message: `${this.$t(genList[i].name)}${this.$t('component.check.null')}`,
-                };
+                return genList[i].type == 'textarea'
+                  ? {
+                      ...item,
+                      // 针对多行文本自定义验证函数去除空格
+                      validator: (rule: any, value: any, callback: any) => {
+                        const trimmedValue = value?.trim();
+                        if (!trimmedValue) {
+                          callback(new Error());
+                        } else {
+                          callback();
+                        }
+                      },
+                      message: `${this.$t(genList[i].name)}${this.$t('component.check.null')}`,
+                    }
+                  : {
+                      ...item,
+                      message: `${this.$t(genList[i].name)}${this.$t('component.check.null')}`,
+                    };
               } else {
                 return {
                   ...item,
@@ -446,10 +459,24 @@ export default class GenerateForm extends Vue {
               if (item.pattern) {
                 return { ...item, pattern: eval(item.pattern) };
               } else if (item.required) {
-                return {
-                  ...item,
-                  message: `${this.$t(genList[i].name)}${this.$t('component.check.null')}`,
-                };
+                return genList[i].type == 'textarea'
+                  ? {
+                      ...item,
+                      // 针对多行文本自定义验证函数去除空格
+                      validator: (rule: any, value: any, callback: any) => {
+                        const trimmedValue = value?.trim();
+                        if (!trimmedValue) {
+                          callback(new Error());
+                        } else {
+                          callback();
+                        }
+                      },
+                      message: `${this.$t(genList[i].name)}${this.$t('component.check.null')}`,
+                    }
+                  : {
+                      ...item,
+                      message: `${this.$t(genList[i].name)}${this.$t('component.check.null')}`,
+                    };
               } else {
                 return {
                   ...item,

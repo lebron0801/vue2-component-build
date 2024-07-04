@@ -511,6 +511,7 @@ export default class WidgetConfig extends Vue {
                     <a-select-option value="AttCalendar">考勤日历</a-select-option>
                     <a-select-option value="AttQishu">考勤期数</a-select-option>
                     <a-select-option value="HUJI">户籍</a-select-option>
+                    <a-select-option value="HrStore">门店列表</a-select-option>
                   </a-select>
                 </div>
               </a-form-model-item>,
@@ -582,18 +583,13 @@ export default class WidgetConfig extends Vue {
             ]}
 
             {(this.data.type == 'select' || this.data.type == 'treeSelect') && [
-              <a-divider>是否开启本地搜索</a-divider>,
+              <a-divider>是否可搜索</a-divider>,
               <a-form-model-item>
                 <div class="feild-item">
-                  <a-switch vModel={this.data.options.filterable} />
-                </div>
-              </a-form-model-item>,
-            ]}
-            {this.data.type == 'select' && [
-              <a-divider>是否开启远端搜索</a-divider>,
-              <a-form-model-item>
-                <div class="feild-item">
-                  <a-switch vModel={this.data.options.filterfetch} />
+                  <a-switch
+                    vModel={this.data.options.filterable}
+                    disabled={this.data.options.multiple}
+                  />
                 </div>
               </a-form-model-item>,
             ]}

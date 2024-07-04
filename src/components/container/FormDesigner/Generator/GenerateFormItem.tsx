@@ -94,7 +94,7 @@ export default class GenerateFormItem extends Vue {
   private userVisible = false; // 是否显示人员选择器
   private options: any[] = []; // 人员选择器临时存储对象
   private previewVisible = false; // 是否显示附件预览
-
+  private treeShowName = ''; // 树懒加载查询搜索字段
   $refs!: {
     selector: any;
   };
@@ -129,7 +129,7 @@ export default class GenerateFormItem extends Vue {
    */
   @Watch('current', { deep: true })
   private currentChange(newVal: any) {
-    console.log('监听进来', newVal);
+    // console.log('监听进来', newVal);
     this.models[this.widget.model] = newVal;
     this.treeObj.value = newVal;
     this.updateModels({
@@ -147,9 +147,14 @@ export default class GenerateFormItem extends Vue {
 
   private treeSelected: any = []; // 下拉树选中的需要显示的节点名称
   private cascaderSelected = '';
+  private imgViewObj: any = {
+    visible: false,
+    url: '',
+  }; // 图片预览 - 只读模式
 
   created() {
     this.excuteOption();
+    // console.log('初始化fff', this.remote);
   }
 
   excuteOption() {
@@ -159,7 +164,6 @@ export default class GenerateFormItem extends Vue {
      */
     if (this.widget.options.remote && this.remote[this.widget.options.remoteFunc]) {
       this.remote[this.widget.options.remoteFunc]((data: any) => {
-        console.log('初始化', data);
         if (this.widget.type === 'treeSelect' && !this.widget.options.asyncLoad) {
           this.widget.options.remoteOptions = data;
 
@@ -229,24 +233,36 @@ export default class GenerateFormItem extends Vue {
    * 下拉树懒加载方法
    * @param treeNode
    */
-  treeSelectLoad(treeNode: any) {
+  treeSelectLoad(treeNode: any, r: any, value: string) {
     return new Promise((resolve: Function) => {
-      this.remote[this.widget.options.remoteFunc]((data: any) => {
-        const temp = data.map((item: any) => {
-          return {
-            id: item[this.widget.options.props.value],
-            pId: treeNode.dataRef.id,
-            key: item[this.widget.options.props.value],
-            value: item[this.widget.options.props.value],
-            label: item[this.widget.options.props.label],
-            children: item[this.widget.options.props.children],
-            isLeaf: item.isLeaf,
-          };
-        });
-        treeNode.dataRef.children = temp;
-        // this.widget.options.remoteOptions = this.widget.options.remoteOptions.concat(temp);
-        resolve();
-      }, treeNode);
+      this.remote[this.widget.options.remoteFunc](
+        (data: any) => {
+          const temp = data.map((item: any) => {
+            return {
+              id: item[this.widget.options.props.value],
+              pId: treeNode ? (treeNode.dataRef ? treeNode.dataRef.id : '') : '',
+              key: item[this.widget.options.props.value],
+              value: item[this.widget.options.props.value],
+              label: item[this.widget.options.props.label],
+              children: item[this.widget.options.props.children],
+              isLeaf: item.isLeaf,
+            };
+          });
+          if (value) {
+            r.remoteOptions = temp;
+          } else {
+            if (treeNode.dataRef) {
+              treeNode.dataRef.children = temp;
+            } else {
+              r.remoteOptions = temp;
+            }
+          }
+          // this.widget.options.remoteOptions = this.widget.options.remoteOptions.concat(temp);
+          resolve();
+        },
+        treeNode,
+        value,
+      );
     });
   }
   /**
@@ -366,6 +382,15 @@ export default class GenerateFormItem extends Vue {
               this.current.map((item: any) => {
                 return (
                   <span style="margin-right: 10px;">
+                    <img
+                      alt={item.name}
+                      src={item.url}
+                      style="width: 100px; display: block; cursor: pointer;"
+                      onClick={() => {
+                        this.imgViewObj.visible = true;
+                        this.imgViewObj.url = item.url;
+                      }}
+                    />
                     <a-icon type="paper-clip" style="margin-right: 5px;" />
                     <a target="_blank" href={item.url}>
                       {item.name}
@@ -373,6 +398,42 @@ export default class GenerateFormItem extends Vue {
                   </span>
                 );
               })}
+            <a-modal
+              visible={this.imgViewObj.visible}
+              footer={null}
+              title="预览"
+              wrapClassName="component-pop-upload-preview"
+              onCancel={() => {
+                this.imgViewObj.visible = false;
+              }}
+            >
+              <a-carousel
+                arrows
+                scopedSlots={{
+                  prevArrow: (props: any) => {
+                    return (
+                      <div class="custom-slick-arrow" style="left: 10px; z-index: 1;">
+                        <a-icon type="left-circle" />
+                      </div>
+                    );
+                  },
+                  nextArrow: (props: any) => {
+                    return (
+                      <div class="custom-slick-arrow" style="right: 10px">
+                        <a-icon type="right-circle" />
+                      </div>
+                    );
+                  },
+                }}
+              >
+                <div style="height: 200px;">
+                  <img
+                    src={this.imgViewObj.url}
+                    style="object-fit: scale-down; width: 100%; height: 100%;"
+                  />
+                </div>
+              </a-carousel>
+            </a-modal>
           </div>
         ) : (
           <div>
@@ -883,6 +944,9 @@ export default class GenerateFormItem extends Vue {
                 placeholder={this.$t(widget.options.placeholder)}
                 allowClear={widget.options.clearable}
                 searchType={widget.options.searchType}
+                filterfetch={widget.options.filterfetch}
+                remote={this.remote}
+                fetchFun={widget.options.remoteFunc}
                 searchParams={
                   widget.options.searchParams && widget.options.searchParams.trim() !== ''
                     ? JSON.parse(widget.options.searchParams)
@@ -935,12 +999,25 @@ export default class GenerateFormItem extends Vue {
                       this.treeSelected = (value as any).map((o: any) => o.label);
                       // this.treeObj.label = extra.triggerNode.label;
                       this.models[this.widget.model] = (value as any).map((o: any) => o.value);
+                      this.current = (value as any).map((o: any) => o.value);
                       this.widget.options.assistField
                         ? (this.models[this.widget.options.assistField] = this.treeSelected)
                         : '';
-                      console.log('书回调', value, label, extra, this.treeList);
+                      (this.$refs as any)[widget.model].onFieldChange();
+
+                      if (this.remote[widget.options.onchange]) {
+                        this.remote[widget.options.onchange](this.current, this.models, this.value);
+                      }
                     }}
-                    props={widget.options.asyncLoad ? { loadData: this.treeSelectLoad } : null}
+                    filterTreeNode={(inputValue: string, treeNode: any) => {
+                      return true;
+                    }}
+                    searchValue={this.treeShowName}
+                    on-search={(value: string) => {
+                      this.treeShowName = value;
+                      this.treeSelectLoad({}, widget.options, value);
+                    }}
+                    load-data={(treeNode: any) => this.treeSelectLoad(treeNode, widget.options, '')}
                   ></a-tree-select>
                 ) : (
                   <a-tree-select
@@ -974,16 +1051,25 @@ export default class GenerateFormItem extends Vue {
                       this.treeSelected = extra.triggerNode.label;
                       this.treeObj.label = extra.triggerNode.label;
                       this.models[this.widget.model] = this.treeObj.value;
+                      this.current = this.treeObj.value;
                       this.widget.options.assistField
                         ? (this.models[this.widget.options.assistField] = this.treeObj.label)
                         : '';
-                      console.log(
-                        '书回调',
-                        JSON.parse(JSON.stringify(this.models)),
-                        JSON.parse(JSON.stringify(this.current)),
-                      );
+                      (this.$refs as any)[widget.model].onFieldChange();
+
+                      if (this.remote[widget.options.onchange]) {
+                        this.remote[widget.options.onchange](this.current, this.models, this.value);
+                      }
                     }}
-                    props={widget.options.asyncLoad ? { loadData: this.treeSelectLoad } : null}
+                    filterTreeNode={(inputValue: string, treeNode: any) => {
+                      return true;
+                    }}
+                    searchValue={this.treeShowName}
+                    on-search={(value: string) => {
+                      this.treeShowName = value;
+                      this.treeSelectLoad({}, widget.options, value);
+                    }}
+                    load-data={(treeNode: any) => this.treeSelectLoad(treeNode, widget.options, '')}
                   ></a-tree-select>
                 )
               ) : (
@@ -1015,6 +1101,11 @@ export default class GenerateFormItem extends Vue {
                   showCheckedStrategy={widget.options.showCheckedStrategy}
                   onChange={(value: string | string[], label: Array<string>, extra: any) => {
                     this.treeSelected = label;
+                    (this.$refs as any)[widget.model].onFieldChange();
+
+                    if (this.remote[widget.options.onchange]) {
+                      this.remote[widget.options.onchange](this.current, this.models, this.value);
+                    }
                   }}
                   props={widget.options.asyncLoad ? { loadData: this.treeSelectLoad } : null}
                 ></a-tree-select>
@@ -1059,6 +1150,13 @@ export default class GenerateFormItem extends Vue {
                 vModel={this.current}
                 disabled={widget.options.disabled}
                 size={this.globalConfig.size}
+                onChange={() => {
+                  (this.$refs as any)[widget.model].onFieldChange();
+
+                  if (this.remote[widget.options.onchange]) {
+                    this.remote[widget.options.onchange](this.current, this.models, this.value);
+                  }
+                }}
               />
             )}
 
@@ -1083,14 +1181,14 @@ export default class GenerateFormItem extends Vue {
                   this.current = data.map(file => ({
                     key: widget.model,
                     keyName: widget.name,
-                    uid: file.id,
+                    uid: file.id || file.uid,
                     url: file.url,
                     name: file.name,
                     status: file.status,
                     path: file.path,
-                    storageId: file.id,
+                    storageId: file.id || file.storageId,
                     storageName: file.name,
-                    storageType: file.contentType,
+                    storageType: file.contentType || file.storageType,
                     storageUrl: file.url,
                   }));
 
@@ -1194,6 +1292,8 @@ export default class GenerateFormItem extends Vue {
         )}
       </a-form-model-item>
     );
+
+    // console.log('item', this.remote, JSON.parse(JSON.stringify(widget.options)));
     return (
       <div class="generate-form-item">
         {this.filterKeys.length > 0 && this.filterKeysState ? temp : null}

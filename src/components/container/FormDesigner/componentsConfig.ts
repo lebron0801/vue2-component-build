@@ -569,6 +569,14 @@ export const basicComponents = [
       // 查询参数
       searchParams: '',
       autoSearch: false,
+      filterfetch: false,
+      remote: true,
+      props: {
+        value: 'value',
+        label: 'label',
+      },
+      options: [],
+      remoteFunc: '',
       count: 10,
       onchange: '',
     },
